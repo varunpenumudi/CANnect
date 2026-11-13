@@ -1,21 +1,21 @@
-import glob
 import os
+import sys
 import time
-from serial.tools.list_ports import comports as list_comports
 from typing import Dict, List, Optional
 import can
-import sys
+from serial.tools.list_ports import comports as list_comports
+
 
 class CANBackend:
     def __init__(self):
         self.bus: Optional[can.BusABC] = None
         self.is_connected: bool = False
         self.is_running: bool = False
-        self.rx_messages: List[Dict] = []
-        self.tx_messages: List[Dict] = []
+        self.messages: List[Dict] = []  # Unified Rx + Tx trace buffer
         self.rx_count: int = 0
         self.tx_count: int = 0
         self.error_count: int = 0
+        self.msg_uid: int = 0
         self.current_channel: Optional[str | int] = None
         self.current_bustype: str = "socketcan"
 
@@ -62,6 +62,22 @@ class CANBackend:
                 pass
             self.bus = None
 
+    def _append_trace_row(self, msg_type: str, arb_id: int, is_ext: bool, dlc: int, data: bytes | bytearray, timestamp: float) -> Dict:
+        self.msg_uid += 1
+        row = {
+            "uid": self.msg_uid,
+            "timestamp": f"{timestamp % 1000:.4f}",
+            "channel": self.current_channel,
+            "type": msg_type,
+            "id": f"0x{arb_id:03X}" if not is_ext else f"0x{arb_id:08X}",
+            "dlc": dlc,
+            "data": " ".join(f"{b:02X}" for b in data),
+        }
+        self.messages.insert(0, row)
+        if len(self.messages) > 1000:
+            self.messages.pop()
+        return row
+
     def send_message(
         self, arbitration_id: int, data: bytes, is_extended_id: bool = False
     ) -> bool:
@@ -76,23 +92,14 @@ class CANBackend:
         try:
             self.bus.send(msg)
             self.tx_count += 1
-            self.tx_messages.insert(
-                0,
-                {
-                    "timestamp": f"{time.time() % 1000:.3f}",
-                    "channel": self.current_channel,
-                    "type": "Tx",
-                    "id": (
-                        f"0x{arbitration_id:03X}"
-                        if not is_extended_id
-                        else f"0x{arbitration_id:08X}"
-                    ),
-                    "dlc": len(data),
-                    "data": " ".join(f"{b:02X}" for b in data),
-                },
+            self._append_trace_row(
+                msg_type="Tx",
+                arb_id=arbitration_id,
+                is_ext=is_extended_id,
+                dlc=len(data),
+                data=data,
+                timestamp=time.time(),
             )
-            if len(self.tx_messages) > 1000:
-                self.tx_messages.pop()
             return True
         except Exception as e:
             print(f"[CAN Tx Error] {e}")
@@ -106,22 +113,14 @@ class CANBackend:
             msg = self.bus.recv(timeout=0.0)
             if msg:
                 self.rx_count += 1
-                row = {
-                    "timestamp": f"{msg.timestamp % 1000:.4f}",
-                    "channel": self.current_channel,
-                    "type": "Rx",
-                    "id": (
-                        f"0x{msg.arbitration_id:03X}"
-                        if not msg.is_extended_id
-                        else f"0x{msg.arbitration_id:08X}"
-                    ),
-                    "dlc": msg.dlc,
-                    "data": " ".join(f"{b:02X}" for b in msg.data),
-                }
-                self.rx_messages.insert(0, row)
-                if len(self.rx_messages) > 1000:
-                    self.rx_messages.pop()
-                return row
+                return self._append_trace_row(
+                    msg_type="Rx",
+                    arb_id=msg.arbitration_id,
+                    is_ext=msg.is_extended_id,
+                    dlc=msg.dlc,
+                    data=msg.data,
+                    timestamp=msg.timestamp or time.time(),
+                )
         except Exception:
             self.error_count += 1
         return None
