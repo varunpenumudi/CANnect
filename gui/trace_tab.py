@@ -18,7 +18,7 @@ TRACE_COLUMNS = [
 class TraceTab:
     def __init__(self, backend: CANBackend):
         self.backend = backend
-        self.container = ui.column().classes("w-full h-full gap-1")
+        self.container = ui.column().classes("w-full h-full gap-1 overflow-hidden")
 
         with self.container:
             # Resizable Top / Bottom Split (75% Top Trace Table, 25% Bottom Transmit Pane)
@@ -30,7 +30,7 @@ class TraceTab:
 
             # ---------------- TOP PANE: UNIFIED BUS TRACE (RX & TX) ----------------
             with self.splitter.before:
-                with ui.column().classes("w-full h-full p-2 gap-1"):
+                with ui.column().classes("w-full h-full min-h-0 p-2 gap-1 overflow-hidden"):
                     with ui.row().classes("w-full items-center justify-between"):
                         ui.label("BUS MESSAGE TRACE (RX / TX)").classes("text-xs font-bold text-emerald-400")
                         self.counter_lbl = ui.label("Rx: 0 | Tx: 0").classes("text-xs text-gray-400")

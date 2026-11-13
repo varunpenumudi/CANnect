@@ -9,12 +9,15 @@ BG_DARK = "#121820"
 PANEL_DARK = "#1A222D"
 BORDER_DARK = "#283548"
 
-BODY_STYLE   = f"background-color: {BG_DARK}; color: #ECEFF4; margin: 0; padding: 0; font-family: monospace, sans-serif;"
-HEADER_STYLE =  f"background: {PANEL_DARK}; border-bottom: 1px solid {BORDER_DARK}; height: 50px;"
+BODY_STYLE = f"background-color: {BG_DARK}; color: #ECEFF4; margin: 0; padding: 0; overflow: hidden; font-family: monospace, sans-serif;"
+HEADER_STYLE = f"background: {PANEL_DARK}; border-bottom: 1px solid {BORDER_DARK}; height: 50px;"
+FOOTER_STYLE = f"background: {PANEL_DARK}; border-top: 1px solid {BORDER_DARK}; height: 55px;"
 MENU_STYLE = f"background-color: {PANEL_DARK}; color: #ECEFF4; border: 1px solid {BORDER_DARK};"
 
-ui.query("body").style(BODY_STYLE)
 ui.dark_mode().enable()
+ui.query("html").style("overflow: hidden;")
+ui.query("body").style(BODY_STYLE)
+ui.query(".nicegui-content").classes("p-0 m-0 gap-0").style("height: calc(100vh - 105px); overflow: hidden;")
 
 backend = CANBackend()
 active_window = "trace"
@@ -74,8 +77,7 @@ with ui.header().style(HEADER_STYLE).classes("items-center justify-between px-4"
             ui.notify("Trace paused", color="grey")
 
         def action_clear():
-            backend.rx_messages.clear()
-            backend.tx_messages.clear()
+            backend.messages.clear()
             trace_view.clear()
             ui.notify("Trace buffers cleared", color="info")
 
@@ -88,7 +90,7 @@ with ui.header().style(HEADER_STYLE).classes("items-center justify-between px-4"
         conn_status_label = ui.label("Disconnected").classes("text-xs text-gray-300 mr-2")
 
 # Workspace Containers
-with ui.column().classes("w-full p-2 flex-grow").style("height: calc(100vh - 90px);"):
+with ui.column().classes("w-full p-2 flex-grow").style("height: 90vh"):
     trace_view = TraceTab(backend)
     graph_view = GraphTab(backend)
 
