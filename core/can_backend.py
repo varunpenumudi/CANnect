@@ -1,8 +1,10 @@
 import glob
 import os
 import time
+from serial.tools.list_ports import comports as list_comports
 from typing import Dict, List, Optional
 import can
+import sys
 
 class CANBackend:
     def __init__(self):
@@ -14,28 +16,26 @@ class CANBackend:
         self.rx_count: int = 0
         self.tx_count: int = 0
         self.error_count: int = 0
-        self.current_channel: str = "None"
+        self.current_channel: Optional[str | int] = None
         self.current_bustype: str = "socketcan"
 
     def detect_interfaces(self, bustype: str) -> List[str]:
         interfaces = []
-        if bustype == "socketcan":
-            if os.path.exists("/sys/class/net"):
-                for iface in os.listdir("/sys/class/net"):
-                    if iface.startswith(("can", "vcan", "slcan")):
-                        interfaces.append(iface)
-            if not interfaces:
-                interfaces = ["can0", "can1", "vcan0"]
-        elif bustype == "seeedstudio":
-            ports = (
-                glob.glob("/dev/ttyUSB*")
-                + glob.glob("/dev/ttyACM*")
-                + glob.glob("/dev/tty.usb*")
-            )
-            interfaces = ports if ports else ["COM1", "COM2", "/dev/ttyUSB0"]
+        try:
+            if bustype == "socketcan":
+                configs = can.detect_available_configs(interfaces=["socketcan"])
+                interfaces = [str(cfg["channel"]) for cfg in configs if "channel" in cfg]
+            elif bustype == "seeedstudio":
+                interfaces = [p.device for p in list_comports()]
+            elif bustype == "canable":
+                configs = can.detect_available_configs(interfaces=["gs_usb"])
+                interfaces = [str(cfg["channel"]) for cfg in configs if "channel" in cfg]
+        except Exception as e:
+            print(f"[CAN Warning] Interface scan failed for {bustype}: {e}")
+
         return interfaces
 
-    def connect(self, bustype: str, channel: str, bitrate: int, **kwargs) -> bool:
+    def connect(self, bustype: str, channel: Optional[str | int], bitrate: int, **kwargs) -> bool:
         self.disconnect()
         self.current_bustype = bustype
         self.current_channel = channel
