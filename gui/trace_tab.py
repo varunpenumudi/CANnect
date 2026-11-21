@@ -18,33 +18,54 @@ TRACE_COLUMNS = [
 class TraceTab:
     def __init__(self, backend: CANBackend):
         self.backend = backend
-        self.container = ui.column().classes("w-full h-full gap-1 overflow-hidden")
+        # h-full + min-h-0 keeps the container locked inside main.py's workspace bounds
+        self.container = ui.column().classes("w-full h-full min-h-0 gap-1 overflow-hidden")
 
         with self.container:
             # Resizable Top / Bottom Split (75% Top Trace Table, 25% Bottom Transmit Pane)
             self.splitter = (
                 ui.splitter(horizontal=True, value=75)
-                .classes("w-full flex-grow")
+                .classes("w-full flex-1 min-h-0")
                 .style(f"background: {BG_DARK}; border: 1px solid {BORDER_DARK}; border-radius: 4px;")
             )
 
             # ---------------- TOP PANE: UNIFIED BUS TRACE (RX & TX) ----------------
             with self.splitter.before:
+                # overflow-hidden + min-h-0 forces children to scroll internally instead of expanding the pane
                 with ui.column().classes("w-full h-full min-h-0 p-2 gap-1 overflow-hidden"):
-                    with ui.row().classes("w-full items-center justify-between"):
+                    with ui.row().classes("w-full items-center justify-between shrink-0"):
                         ui.label("BUS MESSAGE TRACE (RX / TX)").classes("text-xs font-bold text-emerald-400")
                         self.counter_lbl = ui.label("Rx: 0 | Tx: 0").classes("text-xs text-gray-400")
 
+                    # rowsPerPage: 0 disables pagination so virtual-scroll handles all buffered rows smoothly.
+                    # h-0 + flex-1 + sticky-header keeps the table strictly bounded to the top splitter pane.
                     self.trace_table = (
                         ui.table(
                             columns=TRACE_COLUMNS,
                             rows=[],
                             row_key="uid",
-                            pagination={"rowsPerPage": 25},
+                            pagination={"rowsPerPage": 0},
                         )
-                        .classes("w-full flex-grow")
-                        .props("dense flat bordered dark virtual-scroll")
+                        .classes("w-full flex-1 h-0")
+                        .props(
+                            'dense flat bordered dark virtual-scroll '
+                            ':virtual-scroll-item-size="28" '
+                            ':virtual-scroll-sticky-size-start="28" '
+                            'hide-bottom'
+                        )
                     )
+
+                    # Pin table header when scrolling through messages
+                    ui.add_head_html("""
+                    <style>
+                        .q-table__middle thead tr th {
+                            position: sticky;
+                            top: 0;
+                            z-index: 1;
+                            background-color: #1A222D;
+                        }
+                    </style>
+                    """)
 
                     # Color-code Tx (Blue) vs Rx (Green) in the 'type' column
                     self.trace_table.add_slot(
@@ -60,7 +81,7 @@ class TraceTab:
 
             # ---------------- BOTTOM PANE: TRANSMIT MESSAGE (SEND PANE) ----------------
             with self.splitter.after:
-                with ui.column().classes("w-full h-full p-2 gap-2 justify-center"):
+                with ui.column().classes("w-full h-full min-h-0 p-2 gap-2 justify-center overflow-auto"):
                     ui.label("TRANSMIT MESSAGE (TX)").classes("text-xs font-bold text-blue-400")
 
                     with ui.row().style(
@@ -81,10 +102,10 @@ class TraceTab:
                                 if self.backend.send_message(
                                     arb_id, payload, is_extended_id=tx_ext.value
                                 ):
-                                    self.refresh_trace()
-                                    ui.notify(f"Sent 0x{arb_id:X}", color="positive")
+                                    # self.refresh_trace()
+                                    ...
                                 else:
-                                    ui.notify("Tx Failed: Interface disconnected", color="negative")
+                                    ui.notify("Tx Failed", color="negative")
                             except Exception as err:
                                 ui.notify(f"Tx Error: {err}", color="negative")
 
@@ -96,13 +117,9 @@ class TraceTab:
                         ).classes("px-4")
 
     def refresh_trace(self):
-        self.trace_table.rows = list(self.backend.messages[:100])
+        self.trace_table.rows = list(self.backend.messages[:500])
         self.counter_lbl.text = f"Rx: {self.backend.rx_count} | Tx: {self.backend.tx_count}"
         self.trace_table.update()
-
-    # Keep alias so main.py's trace_view.refresh_rx() call continues to work seamlessly
-    def refresh_rx(self):
-        self.refresh_trace()
 
     def clear(self):
         self.trace_table.rows = []

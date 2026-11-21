@@ -5,7 +5,6 @@ from typing import Dict, List, Optional
 import can
 from serial.tools.list_ports import comports as list_comports
 
-
 class CANBackend:
     def __init__(self):
         self.bus: Optional[can.BusABC] = None
@@ -107,20 +106,19 @@ class CANBackend:
             return False
 
     def poll_rx(self) -> Optional[Dict]:
-        if not self.is_connected or not self.is_running or not self.bus:
-            return None
-        try:
-            msg = self.bus.recv(timeout=0.0)
-            if msg:
-                self.rx_count += 1
-                return self._append_trace_row(
-                    msg_type="Rx",
-                    arb_id=msg.arbitration_id,
-                    is_ext=msg.is_extended_id,
-                    dlc=msg.dlc,
-                    data=msg.data,
-                    timestamp=msg.timestamp or time.time(),
-                )
-        except Exception:
-            self.error_count += 1
+        if self.is_connected and self.is_running and self.bus:
+            try:
+                msg = self.bus.recv(timeout=0.0)
+                if msg:
+                    self.rx_count += 1
+                    return self._append_trace_row(
+                        msg_type="Rx",
+                        arb_id=msg.arbitration_id,
+                        is_ext=msg.is_extended_id,
+                        dlc=msg.dlc,
+                        data=msg.data,
+                        timestamp=msg.timestamp or time.time(),
+                    )
+            except Exception:
+                self.error_count += 1
         return None

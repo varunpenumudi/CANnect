@@ -124,15 +124,11 @@ last_time = time.time()
 def update_ui_loop():
     global last_rx_count, last_tx_count, last_time
 
-    batch_updated = False
-    for _ in range(50):
-        if backend.poll_rx():
-            batch_updated = True
-        else:
-            break
+    while backend.poll_rx():
+        ...
 
-    if batch_updated and active_window == "trace":
-        trace_view.refresh_rx()
+    if active_window == "trace":
+        trace_view.refresh_trace()
 
     now = time.time()
     dt = now - last_time
@@ -144,5 +140,5 @@ def update_ui_loop():
         last_tx_count = backend.tx_count
         last_time = now
 
-ui.timer(0.04, update_ui_loop)
+ui.timer(0.01, update_ui_loop)
 ui.run(native=True)
